@@ -41,7 +41,7 @@ SPEC_TABLE = f"{CATALOG}.{SCHEMA}.gold_feature_spec"
 import re
 from pyspark.sql import functions as F
 
-PHASE_COLS = [f"Mineral_Phase_{c}" for c in "ABCDEFGH"]
+PHASE_COLS = [f"Mineral_Phase_{c}" for c in "ABDEFGH"]
 INPUT_COLS = ["Physical_Metric_A", "Physical_Metric_B", *PHASE_COLS, "Chemical_Composition_A", "Chemical_Composition_B"]
 TARGET_COLS = ["Strength1", "Strength7", "Strength28"]
 
