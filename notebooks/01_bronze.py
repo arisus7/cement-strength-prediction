@@ -28,6 +28,7 @@ SCHEMA = dbutils.widgets.get("schema")
 SOURCE_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/raw/{dbutils.widgets.get('source_file')}"
 BRONZE_TABLE = f"{CATALOG}.{SCHEMA}.bronze_cement_quality"
 
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {CATALOG}.{SCHEMA}.raw")
 print(f"Reading {SOURCE_PATH} -> {BRONZE_TABLE}")
