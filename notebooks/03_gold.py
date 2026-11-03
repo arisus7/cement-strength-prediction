@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 03 · Gold: model-ready features
 # MAGIC
@@ -16,8 +20,8 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog", "main", "Catalog")
-dbutils.widgets.text("schema", "cement_strength", "Schema")
+dbutils.widgets.text("catalog", "datathon", "Catalog")
+dbutils.widgets.text("schema", "gcc", "Schema")
 dbutils.widgets.text("test_pct", "20", "Test split %")
 dbutils.widgets.text("split_salt", "micai2026", "Split salt")
 dbutils.widgets.text("min_type_rows", "20", "Min rows to keep a ProductType")
@@ -158,3 +162,7 @@ display(
     )
 )
 print(f"Gold written: {GOLD_TABLE} ({gold.count()} rows, {len(FEATURE_COLS)} features)")
+
+# COMMAND ----------
+
+display(spark.sql("SHOW TABLES IN datathon.gcc"))

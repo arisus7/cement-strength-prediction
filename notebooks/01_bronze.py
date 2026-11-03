@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 01 · Bronze: raw ingestion
 # MAGIC
@@ -15,8 +19,8 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog", "main", "Catalog")
-dbutils.widgets.text("schema", "cement_strength", "Schema")
+dbutils.widgets.text("catalog", "datathon", "Catalog")
+dbutils.widgets.text("schema", "gcc", "Schema")
 dbutils.widgets.text("source_file", "datathon_data_gcc.csv", "Source file in raw volume")
 
 CATALOG = dbutils.widgets.get("catalog")
@@ -75,4 +79,4 @@ spark.sql(f"COMMENT ON TABLE {BRONZE_TABLE} IS 'Raw cement quality samples, all 
 n = spark.table(BRONZE_TABLE).count()
 print(f"Bronze rows: {n}")
 assert n > 0, "Bronze table is empty"
-display(spark.table(BRONZE_TABLE).limit(10))
+display(spark.table(BRONZE_TABLE))

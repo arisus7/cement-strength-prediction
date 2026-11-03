@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 02 · Silver: cleaned, typed, validated
 # MAGIC
@@ -22,8 +26,8 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog", "main", "Catalog")
-dbutils.widgets.text("schema", "cement_strength", "Schema")
+dbutils.widgets.text("catalog", "datathon", "Catalog")
+dbutils.widgets.text("schema", "gcc", "Schema")
 
 CATALOG = dbutils.widgets.get("catalog")
 SCHEMA = dbutils.widgets.get("schema")
