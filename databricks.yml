@@ -1,4 +1,4 @@
-# Databricks Asset Bundle: deploys the medallion pipeline as one job (Bronze -> Silver -> Gold).
+# Databricks Asset Bundle: deploys the pipeline as one job (Bronze -> Silver -> Gold -> Train).
 #   databricks bundle deploy
 #   databricks bundle run medallion_pipeline
 bundle:
@@ -35,6 +35,11 @@ resources:
             - task_key: silver
           notebook_task:
             notebook_path: ./notebooks/03_gold.py
+        - task_key: train
+          depends_on:
+            - task_key: gold
+          notebook_task:
+            notebook_path: ./notebooks/04_train.py
 
 targets:
   dev:
