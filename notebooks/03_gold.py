@@ -54,16 +54,17 @@ type_counts = {r["ProductType"]: r["count"] for r in silver.groupBy("ProductType
 kept_types = sorted(t for t, n in type_counts.items() if n >= MIN_TYPE_ROWS)
 print(f"Kept types: {kept_types}; grouped into Other: { {t: n for t, n in type_counts.items() if t not in kept_types} }")
 
-
 def type_col_name(t):
     return "pt_" + re.sub(r"\W+", "_", t.strip().lower())
-
 
 df = silver.withColumn(
     "ProductType_group", F.when(F.col("ProductType").isin(kept_types), F.col("ProductType")).otherwise(F.lit("Other"))
 )
-type_groups = kept_types + (["Other"] if len(kept_types) < len(type_counts) else [])
+
+# MODIFICACIÓN VIF: Excluimos "Other" de la lista de variables dummy a generar
+type_groups = kept_types 
 TYPE_COLS = [type_col_name(t) for t in type_groups]
+
 for t, c in zip(type_groups, TYPE_COLS):
     df = df.withColumn(c, (F.col("ProductType_group") == t).cast("int"))
 
@@ -87,13 +88,16 @@ train = df.filter("split = 'train'")
 medians = train.select(*[F.percentile_approx(c, 0.5).alias(c) for c in INPUT_COLS]).first().asDict()
 null_counts = df.select(*[F.sum(F.col(c).isNull().cast("int")).alias(c) for c in INPUT_COLS]).first().asDict()
 
-# Physical_Metric_A already has Physical_Metric_A_measured from Silver.
 FLAG_COLS = []
 for c in INPUT_COLS:
     if null_counts[c] and c != "Physical_Metric_A":
         flag = f"{c}_missing"
         df = df.withColumn(flag, F.col(c).isNull().cast("int"))
-        FLAG_COLS.append(flag)
+        
+        # MODIFICACIÓN VIF: No agregar la bandera 'B' al arreglo final de features
+        if flag != "Chemical_Composition_B_missing":
+            FLAG_COLS.append(flag)
+            
     df = df.withColumn(c, F.coalesce(F.col(c), F.lit(medians[c])))
 
 df = df.withColumn("Physical_Metric_A_measured", F.col("Physical_Metric_A_measured").cast("int"))
@@ -162,7 +166,3 @@ display(
     )
 )
 print(f"Gold written: {GOLD_TABLE} ({gold.count()} rows, {len(FEATURE_COLS)} features)")
-
-# COMMAND ----------
-
-display(spark.sql("SHOW TABLES IN datathon.gcc"))
