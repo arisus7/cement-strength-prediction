@@ -7,10 +7,10 @@ bundle:
 variables:
   catalog:
     description: Unity Catalog catalog
-    default: main
+    default: datathon
   schema:
     description: Schema for all pipeline tables
-    default: cement_strength
+    default: gcc
 
 resources:
   jobs:
