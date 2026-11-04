@@ -10,7 +10,7 @@ resources:
       tasks:
         - task_key: 00_setup
           notebook_task:
-            notebook_path: ../src/00_setup.ipynb
+            notebook_path: ../src/00_start.ipynb
             source: WORKSPACE
 
         - task_key: 01_bronze
