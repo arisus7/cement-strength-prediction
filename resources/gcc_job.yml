@@ -37,9 +37,6 @@ resources:
         - task_key: 03b_eda_vif
           depends_on:
             - task_key: 03_gold
-          libraries:
-            - pypi:
-                package: statsmodels
           notebook_task:
             notebook_path: ../src/03b_eda_vif.ipynb
             source: WORKSPACE
@@ -47,9 +44,6 @@ resources:
         - task_key: 04_train
           depends_on:
             - task_key: 03b_eda_vif
-          libraries:
-            - pypi:
-                package: shap
           notebook_task:
             notebook_path: ../src/04_train.py
             source: WORKSPACE
