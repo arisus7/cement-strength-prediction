@@ -1,55 +1,11 @@
-# Databricks Asset Bundle: deploys the medallion pipeline as one job (Bronze -> Silver -> Gold -> EDA -> ML).
-#   databricks bundle deploy
-#   databricks bundle run medallion_pipeline
 bundle:
   name: cement-strength-prediction
 
-variables:
-  catalog:
-    description: Unity Catalog catalog
-    default: datathon
-  schema:
-    description: Schema for all pipeline tables
-    default: gcc
+include:
+  - resources/*.yml
 
-resources:
-  jobs:
-    medallion_pipeline:
-      name: cement-strength-medallion
-      parameters:
-        - name: catalog
-          default: ${var.catalog}
-        - name: schema
-          default: ${var.schema}
-      tasks:
-        - task_key: bronze
-          notebook_task:
-            notebook_path: ./notebooks/01_bronze.py
-
-        - task_key: silver
-          depends_on:
-            - task_key: bronze
-          notebook_task:
-            notebook_path: ./notebooks/02_silver.py
-
-        - task_key: gold
-          depends_on:
-            - task_key: silver
-          notebook_task:
-            notebook_path: ./notebooks/03_gold.py
-        - task_key: train
-          depends_on:
-            - task_key: gold
-          notebook_task:
-            notebook_path: ./notebooks/04_train.py
-
-        - task_key: eda
-          depends_on:
-            - task_key: gold
-          libraries:
-            - pypi:
-                package: "statsmodels"
-            - pypi:
-                package: "shap"
-          notebook_task:
-            notebook_path: ./notebooks/03b_eda_vif.py
+targets:
+  dev:
+    default: true
+    workspace:
+      root_path: /Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
