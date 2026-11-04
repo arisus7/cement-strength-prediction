@@ -1,0 +1,1724 @@
+{
+  "datasets": [
+    {
+      "name": "d6cbe0d0",
+      "displayName": "ml_feature_importance",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.ml_feature_importance",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "de776b43",
+      "displayName": "ml_model_comparison",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.ml_model_comparison",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "1e155de6",
+      "displayName": "ml_model_screening",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.ml_model_screening",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "56587a15",
+      "displayName": "ml_shap_values",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.ml_shap_values",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "3842dafd",
+      "displayName": "ml_test_predictions",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.ml_test_predictions",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ml_champion_models",
+      "displayName": "Modelos Campeones – Comparación ML",
+      "queryLines": [
+        "SELECT\n",
+        "  target,\n",
+        "  model_type,\n",
+        "  ROUND(test_r2, 2) AS `R-Cuadrado`,\n",
+        "  ROUND(test_mae, 2) AS `Error Absoluto Medio`,\n",
+        "  ROUND(test_mape_pct, 2) AS `% de Error`\n",
+        "FROM\n",
+        "  ml_model_comparison\n",
+        "WHERE\n",
+        "  is_champion = true"
+      ],
+      "catalog": "datathon",
+      "schema": "gcc"
+    },
+    {
+      "name": "ml_residual_histogram",
+      "displayName": "Residuales – Modelos Campeones (Histograma)",
+      "config": {
+        "source": "datathon.gcc.ml_test_predictions",
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)"
+          }
+        ],
+        "filter": "is_champion = true",
+        "version": "1.1",
+        "dimensions": [
+          {
+            "expr": "residual"
+          },
+          {
+            "name": "residual_bin_30",
+            "expr": "MIN(residual) OVER () + (WIDTH_BUCKET(residual, MIN(residual) OVER (), MAX(residual) OVER (), 30) - 1) * ((MAX(residual) OVER () - MIN(residual) OVER ()) / 30)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ml_model_comparison_full",
+      "displayName": "Comparación de Modelos – Grid Completo",
+      "queryLines": [
+        "SELECT\n",
+        "  target AS `Resistencia`,\n",
+        "  model_type AS `Modelo`,\n",
+        "  ROUND(test_r2, 3) AS `R-Cuadrado`,\n",
+        "  ROUND(test_mae, 1) AS `MAE (psi)`,\n",
+        "  ROUND(test_mape_pct, 2) AS `MAPE (%)`,\n",
+        "  ROUND(100 - test_mape_pct, 2) AS `Precisión (%)`\n",
+        "FROM\n",
+        "  ml_model_comparison\n",
+        "ORDER BY\n",
+        "  target,\n",
+        "  test_mae"
+      ],
+      "catalog": "datathon",
+      "schema": "gcc"
+    },
+    {
+      "name": "ml_residual_by_target",
+      "displayName": "Residuales por Resistencia – Campeón (Pred − Real)",
+      "config": {
+        "source": "datathon.gcc.ml_test_predictions",
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)"
+          }
+        ],
+        "filter": "is_champion = true",
+        "version": "1.1",
+        "dimensions": [
+          {
+            "name": "target",
+            "expr": "target"
+          },
+          {
+            "name": "ProductType",
+            "expr": "ProductType"
+          },
+          {
+            "name": "residual_pred",
+            "expr": "y_pred - y_true"
+          },
+          {
+            "name": "residual_pred_bin_30",
+            "expr": "MIN(y_pred - y_true) OVER (PARTITION BY target) + (WIDTH_BUCKET(y_pred - y_true, MIN(y_pred - y_true) OVER (PARTITION BY target), MAX(y_pred - y_true) OVER (PARTITION BY target), 30) - 1) * ((MAX(y_pred - y_true) OVER (PARTITION BY target) - MIN(y_pred - y_true) OVER (PARTITION BY target)) / 30)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "silver_cement_quality",
+      "displayName": "Silver – Calidad de Cemento (psi)",
+      "config": {
+        "version": "1.1",
+        "source": "datathon.gcc.silver_cement_quality",
+        "dimensions": [
+          {
+            "name": "ProductType",
+            "expr": "ProductType"
+          },
+          {
+            "name": "Physical_Metric_B",
+            "expr": "Physical_Metric_B"
+          },
+          {
+            "name": "Physical_Metric_A",
+            "expr": "Physical_Metric_A"
+          },
+          {
+            "name": "Mineral_Phase_A",
+            "expr": "Mineral_Phase_A"
+          },
+          {
+            "name": "Mineral_Phase_G",
+            "expr": "Mineral_Phase_G"
+          },
+          {
+            "name": "Chemical_Composition_B",
+            "expr": "Chemical_Composition_B"
+          },
+          {
+            "name": "Strength1",
+            "expr": "Strength1"
+          },
+          {
+            "name": "Strength7",
+            "expr": "Strength7"
+          },
+          {
+            "name": "Strength28",
+            "expr": "Strength28"
+          },
+          {
+            "name": "strength1_bin_30",
+            "expr": "MIN(Strength1) OVER () + (WIDTH_BUCKET(Strength1, MIN(Strength1) OVER (), MAX(Strength1) OVER (), 30) - 1) * ((MAX(Strength1) OVER () - MIN(Strength1) OVER ()) / 30)"
+          },
+          {
+            "name": "strength7_bin_30",
+            "expr": "MIN(Strength7) OVER () + (WIDTH_BUCKET(Strength7, MIN(Strength7) OVER (), MAX(Strength7) OVER (), 30) - 1) * ((MAX(Strength7) OVER () - MIN(Strength7) OVER ()) / 30)"
+          },
+          {
+            "name": "strength28_bin_30",
+            "expr": "MIN(Strength28) OVER () + (WIDTH_BUCKET(Strength28, MIN(Strength28) OVER (), MAX(Strength28) OVER (), 30) - 1) * ((MAX(Strength28) OVER () - MIN(Strength28) OVER ()) / 30)"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ml_feature_importance_top10",
+      "displayName": "Top 10 Variables por Resistencia (Campeón)",
+      "config": {
+        "version": "1.1",
+        "source": "WITH ranked AS (\n  SELECT\n    fi.feature AS feature,\n    fi.importance_mean AS importance_mean,\n    fi.importance_std AS importance_std,\n    fi.target AS target,\n    fi.model_type AS model_type,\n    ROW_NUMBER() OVER (PARTITION BY fi.target ORDER BY fi.importance_mean DESC) AS rn\n  FROM datathon.gcc.ml_feature_importance AS fi\n  JOIN datathon.gcc.ml_model_comparison AS mc\n    ON fi.target = mc.target\n    AND fi.model_type = mc.model_type\n    AND mc.is_champion = true\n)\nSELECT feature, importance_mean, importance_std, target, model_type\nFROM ranked\nWHERE rn <= 10",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)"
+          }
+        ]
+      }
+    }
+  ],
+  "pages": [
+    {
+      "name": "29403d3b",
+      "displayName": "Cement strength prediction",
+      "layout": [
+        {
+          "widget": {
+            "name": "model_champions_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_champion_models",
+                  "fields": [
+                    {
+                      "name": "target",
+                      "expression": "`target`"
+                    },
+                    {
+                      "name": "model_type",
+                      "expression": "`model_type`"
+                    },
+                    {
+                      "name": "R-Cuadrado",
+                      "expression": "`R-Cuadrado`"
+                    },
+                    {
+                      "name": "Error Absoluto Medio",
+                      "expression": "`Error Absoluto Medio`"
+                    },
+                    {
+                      "name": "% de Error",
+                      "expression": "`% de Error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Comparación de Modelos Campeones"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "target"
+                  },
+                  {
+                    "fieldName": "model_type"
+                  },
+                  {
+                    "fieldName": "R-Cuadrado"
+                  },
+                  {
+                    "fieldName": "Error Absoluto Medio"
+                  },
+                  {
+                    "fieldName": "% de Error"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "scatter_real_vs_pred",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3842dafd",
+                  "fields": [
+                    {
+                      "name": "target",
+                      "expression": "`target`"
+                    },
+                    {
+                      "name": "y_true",
+                      "expression": "`y_true`"
+                    },
+                    {
+                      "name": "y_pred",
+                      "expression": "`y_pred`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`is_champion` = true"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Predicción vs. Resistencia Real (Modelos Campeones)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "y_true",
+                  "displayName": "Resistencia real",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "y_pred",
+                  "displayName": "Predicción",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "target",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "e06f9d3a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Predicción de Resistencia de Cemento (GCC)\n",
+                "\n",
+                "**Pipeline End-to-End: Bronze → Silver → Gold → MLflow**<br>Este panel evalúa el rendimiento del modelo campeón (ExtraTrees) aislando la predicción a 1, 7 y 28 días."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e5834029",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### ¿Qué dicta la resistencia del cemento?\n",
+                "\n",
+                "El modelo confirma que la receta (Tipo de producto) y la **Métrica Física B** son los factores más determinantes.<br>*Nota:* La Fase Mineral C fue excluida intencionalmente en la capa Gold por multicolinealidad extrema (VIF), mejorando la estabilidad del algoritmo."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "8aa858b8",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Distribución del Error (Perfil Conservador)\n",
+                "\n",
+                "La mayor concentración de errores de predicción se agrupa muy cerca del cero (-69 a +5 psi), lo que demuestra alta precisión general.\n",
+                "\n",
+                "Sin embargo, la distribución presenta una ligera cola hacia la derecha (sesgo positivo). En el contexto industrial de GCC, esto significa que cuando el modelo falla por un margen amplio, tiende a **subestimar** la resistencia real del cemento. Este es un comportamiento \"seguro\" y deseable en la construcción, ya que garantiza que el material entregado rara vez será más débil de lo que el modelo certificó."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b2abc38d",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Confiabilidad de predicción (generalización)\n",
+                "\n",
+                "Este gráfico evalúa la precisión empírica del modelo campeón comparando la **resistencia real** frente a la **predicción** en el conjunto de datos de prueba (datos nunca antes vistos por el algoritmo).\n",
+                "\n",
+                "La fuerte alineación diagonal demuestra una alta exactitud en las predicciones en las tres etapas de curado:\n",
+                "\n",
+                "* **Azul (Día 1):** Captura con precisión las resistencias tempranas (\\~2,000 - 4,000 psi).\n",
+                "* **Verde (Día 7):** Modela correctamente la fase de transición (\\~5,000 - 7,000 psi).\n",
+                "* **Naranja (Día 28):** Predice exitosamente la resistencia final objetivo (\\~6,500 - 9,000 psi).\n",
+                "\n",
+                "La ausencia de puntos severamente dispersos (outliers) confirma que el algoritmo *ExtraTrees* asimiló las reglas químicas y físicas de la mezcla de cemento sin caer en sobreajuste (overfitting)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "section_importancia_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Importancia de Variables por Resistencia\n",
+                "Top 10 variables del modelo campeón (extra_trees) según importancia por permutación (aumento de MAE en psi). Usa el selector para cambiar de resistencia."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 57,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "section_distribucion_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Distribución de Resistencias Reales (psi)\n",
+                "Lotes limpios de la capa Silver (silver_cement_quality). Cada histograma usa su propia escala en X."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 39,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "fi_target_selector",
+            "queries": [
+              {
+                "name": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804deed1c619fdfa9400f1d49ab_target",
+                "query": {
+                  "datasetName": "ml_feature_importance_top10",
+                  "fields": [
+                    {
+                      "name": "target",
+                      "expression": "`target`"
+                    },
+                    {
+                      "name": "target_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Strength28"
+                      }
+                    ]
+                  }
+                }
+              },
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Selector de Resistencia (target)"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "target",
+                    "queryName": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804deed1c619fdfa9400f1d49ab_target"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 59,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "strength1_distribution",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "strength1_bin_30",
+                      "expression": "`strength1_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Strength1` IS NOT NULL"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Distribución de Strength1 (psi)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "strength1_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Resistencia (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de lotes",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 41,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "feature_importance_top10_by_target",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_feature_importance_top10",
+                  "fields": [
+                    {
+                      "name": "avg(importance_mean)",
+                      "expression": "AVG(`importance_mean`)"
+                    },
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "AVG(`importance_mean`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Top 10 Variables más Importantes por Resistencia (psi)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg(importance_mean)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Importancia por permutación (aumento de MAE, psi)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "feature",
+                  "displayName": "Variable",
+                  "scale": {
+                    "categorySize": {
+                      "number": 10,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical",
+                    "sort": {
+                      "by": "measure-reversed",
+                      "measure": {
+                        "fieldName": "avg(importance_mean)"
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 59,
+            "width": 9,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "strength7_distribution",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "strength7_bin_30",
+                      "expression": "`strength7_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Strength7` IS NOT NULL"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Distribución de Strength7 (psi)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "strength7_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Resistencia (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de lotes",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 41,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "section_comparacion_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Comparación de Todos los Modelos\n",
+                "Grid final (3 algoritmos × 3 resistencias). Precisión = 100 − MAPE. Verde: ≥ 95% · Rojo: < 95%. Ordenado por resistencia y MAE (psi)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 67,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "strength28_distribution",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "strength28_bin_30",
+                      "expression": "`strength28_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Strength28` IS NOT NULL"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Distribución de Strength28 (psi)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "strength28_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Resistencia (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de lotes",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 41,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "model_comparison_full_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_model_comparison_full",
+                  "fields": [
+                    {
+                      "name": "Resistencia",
+                      "expression": "`Resistencia`"
+                    },
+                    {
+                      "name": "Modelo",
+                      "expression": "`Modelo`"
+                    },
+                    {
+                      "name": "R-Cuadrado",
+                      "expression": "`R-Cuadrado`"
+                    },
+                    {
+                      "name": "MAE (psi)",
+                      "expression": "`MAE (psi)`"
+                    },
+                    {
+                      "name": "MAPE (%)",
+                      "expression": "`MAPE (%)`"
+                    },
+                    {
+                      "name": "Precisión (%)",
+                      "expression": "`Precisión (%)`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`Resistencia`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "`MAE (psi)`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Comparación de Modelos – Grid Completo (psi)"
+              },
+              "rowsPerPage": 12,
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Resistencia"
+                  },
+                  {
+                    "fieldName": "Modelo"
+                  },
+                  {
+                    "fieldName": "R-Cuadrado",
+                    "contentAlignment": "right",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 3,
+                        "type": "max"
+                      },
+                      "type": "number-plain"
+                    }
+                  },
+                  {
+                    "fieldName": "MAE (psi)",
+                    "contentAlignment": "right",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 1,
+                        "type": "max"
+                      },
+                      "type": "number-plain"
+                    }
+                  },
+                  {
+                    "fieldName": "MAPE (%)",
+                    "contentAlignment": "right",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 2,
+                        "type": "max"
+                      },
+                      "type": "number-plain"
+                    }
+                  },
+                  {
+                    "fieldName": "Precisión (%)",
+                    "contentAlignment": "right",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 2,
+                        "type": "max"
+                      },
+                      "type": "number-plain"
+                    },
+                    "style": {
+                      "rules": [
+                        {
+                          "backgroundColor": "#2E7D32",
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "95"
+                            },
+                            "operator": ">="
+                          },
+                          "foregroundColor": "#FFFFFF"
+                        },
+                        {
+                          "backgroundColor": "#C62828",
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "95"
+                            },
+                            "operator": "<"
+                          },
+                          "foregroundColor": "#FFFFFF"
+                        }
+                      ],
+                      "type": "basic"
+                    }
+                  }
+                ],
+                "rowOrder": [
+                  {
+                    "by": "column",
+                    "field": {
+                      "index": 0
+                    }
+                  },
+                  {
+                    "by": "column",
+                    "field": {
+                      "index": 3
+                    }
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 69,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "section_calidad_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Calidad vs. Resistencia (psi)\n",
+                "Usa el selector «Variable de Calidad» para cambiar el eje X entre las variables de calidad más relevantes del modelo campeón (Métrica Física A/B, Fases Minerales A y G, Composición Química B) frente a cada resistencia real. Coloreado por tipo de producto (ProductType)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 48,
+            "width": 9,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "section_residuales_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Residuales por Resistencia – Modelo Campeón (psi)\n",
+                "Residual = predicción − real (positivo = el modelo sobreestima). Solo el campeón (extra_trees), 30 rangos por resistencia."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 77,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "quality_vs_strength1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "$quality_variable",
+                      "variable": "quality_variable"
+                    },
+                    {
+                      "name": "Strength1",
+                      "expression": "`Strength1`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Variable de Calidad vs. Strength1 (psi)"
+              },
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "$quality_variable",
+                  "displayName": "Variable de calidad",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "Strength1",
+                  "displayName": "Strength1 (psi)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ProductType",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 50,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "residual_hist_strength1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_residual_by_target",
+                  "fields": [
+                    {
+                      "name": "residual_pred_bin_30",
+                      "expression": "`residual_pred_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`target` IN ('Strength1')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Residual – Strength1 (psi)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "residual_pred_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Residual (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de predicciones",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 79,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "quality_vs_strength7",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "$quality_variable",
+                      "variable": "quality_variable"
+                    },
+                    {
+                      "name": "Strength7",
+                      "expression": "`Strength7`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Variable de Calidad vs. Strength7 (psi)"
+              },
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "$quality_variable",
+                  "displayName": "Variable de calidad",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "Strength7",
+                  "displayName": "Strength7 (psi)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ProductType",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 50,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "residual_hist_strength7",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_residual_by_target",
+                  "fields": [
+                    {
+                      "name": "residual_pred_bin_30",
+                      "expression": "`residual_pred_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`target` IN ('Strength7')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Residual – Strength7 (psi)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "residual_pred_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Residual (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de predicciones",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 79,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "quality_vs_strength28",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "$quality_variable",
+                      "variable": "quality_variable"
+                    },
+                    {
+                      "name": "Strength28",
+                      "expression": "`Strength28`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Variable de Calidad vs. Strength28 (psi)"
+              },
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "$quality_variable",
+                  "displayName": "Variable de calidad",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "Strength28",
+                  "displayName": "Strength28 (psi)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ProductType",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 50,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "residual_hist_strength28",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ml_residual_by_target",
+                  "fields": [
+                    {
+                      "name": "residual_pred_bin_30",
+                      "expression": "`residual_pred_bin_30`"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`target` IN ('Strength28')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Residual – Strength28 (psi)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "residual_pred_bin_30",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "displayName": "Residual (inicio del rango, psi)",
+                  "scale": {
+                    "categorySize": {
+                      "number": 30,
+                      "type": "number-of-categories"
+                    },
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "displayName": "Número de predicciones",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 79,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "quality_variable_selector",
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Variable de Calidad (eje X)"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "variableName": "quality_variable"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 48,
+            "width": 3,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "global_filters",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "product_type_global_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804deb31ce58700cc6fd5fc3e98_ProductType",
+                "query": {
+                  "datasetName": "silver_cement_quality",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "ProductType_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d7e0b3f11ac99ed0c21039786bbd_ProductType",
+                "query": {
+                  "datasetName": "3842dafd",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "ProductType_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804de6f11eaa6c4d8f540d741ea_ProductType",
+                "query": {
+                  "datasetName": "ml_residual_by_target",
+                  "fields": [
+                    {
+                      "name": "ProductType",
+                      "expression": "`ProductType`"
+                    },
+                    {
+                      "name": "ProductType_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Filtro Global – Tipo de Producto"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "ProductType",
+                    "queryName": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804deb31ce58700cc6fd5fc3e98_ProductType"
+                  },
+                  {
+                    "fieldName": "ProductType",
+                    "queryName": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d7e0b3f11ac99ed0c21039786bbd_ProductType"
+                  },
+                  {
+                    "fieldName": "ProductType",
+                    "queryName": "dashboards/01f1d7e0a62f1ba6a014c01a8751f9c4/datasets/01f1d804de6f11eaa6c4d8f540d741ea_ProductType"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  },
+  "variables": [
+    {
+      "name": "quality_variable",
+      "displayName": "quality_variable",
+      "field": {
+        "options": [
+          {
+            "expression": "`silver_cement_quality`.`Physical_Metric_B`"
+          },
+          {
+            "expression": "`silver_cement_quality`.`Physical_Metric_A`"
+          },
+          {
+            "expression": "`silver_cement_quality`.`Mineral_Phase_A`"
+          },
+          {
+            "expression": "`silver_cement_quality`.`Mineral_Phase_G`"
+          },
+          {
+            "expression": "`silver_cement_quality`.`Chemical_Composition_B`"
+          }
+        ]
+      }
+    }
+  ]
+}
