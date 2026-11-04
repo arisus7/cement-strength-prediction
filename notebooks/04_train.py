@@ -34,6 +34,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install -q shap
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 dbutils.widgets.text("catalog", "datathon", "Catalog")
 dbutils.widgets.text("schema", "gcc", "Schema")
 dbutils.widgets.text("experiment", "", "MLflow experiment path (blank = ~/gcc_cement_strength)")
