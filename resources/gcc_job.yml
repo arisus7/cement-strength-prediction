@@ -47,3 +47,10 @@ resources:
           notebook_task:
             notebook_path: ../src/04_train.py
             source: WORKSPACE
+
+        - task_key: 05_verify
+          depends_on:
+            - task_key: 04_train
+          notebook_task:
+            notebook_path: ../src/05_verify.ipynb
+            source: WORKSPACE
