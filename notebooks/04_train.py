@@ -9,10 +9,19 @@
 # MAGIC |---|---|
 # MAGIC | T1 · Screening | Quick grouped CV of 6 algorithms + a mean baseline on every target, to justify the final three |
 # MAGIC | T2 · Final grid | Ridge, ExtraTrees and HistGradientBoosting, tuned with a random search under `GroupKFold` on `leakage_group`, evaluated once on the held-out test split |
+# MAGIC | T2b · Robustness | Each tuned model re-scored with **repeated grouped CV** on all labelled rows: median and 5–95% range of R², MAE and MAPE, overall and for in-scope types, plus error by ProductType |
 # MAGIC | T3 · Champion | Best model per target by **CV MAE** (the test split is never used for selection); registered in Unity Catalog with alias `champion` |
 # MAGIC | T4 · Explain | Permutation importance for every model, SHAP values for each champion |
-# MAGIC | T5 · Predictor | One multi-output model (`cement_strength_predictor`): raw quality inputs → R1, R7, R28 with 90% intervals and R1 ≤ R7 ≤ R28 enforced |
-# MAGIC | T6 · Tables | `ml_model_screening`, `ml_model_comparison`, `ml_test_predictions`, `ml_feature_importance`, `ml_shap_values` for the dashboard |
+# MAGIC | T5 · Predictor | One multi-output model (`cement_strength_predictor`): raw quality inputs → R1, R7, R28 with difficulty-scaled 90% intervals, R1 ≤ R7 ≤ R28 enforced, and an out-of-scope flag for rare product types |
+# MAGIC | T6 · Tables | `ml_model_screening`, `ml_model_comparison`, `ml_metric_ranges`, `ml_metrics_by_type`, `ml_test_predictions`, `ml_feature_importance`, `ml_shap_values` for the dashboard |
+# MAGIC
+# MAGIC **Why ranges, not one number.** The test split holds about 140 rows per target, and a single split's R² can move by
+# MAGIC ±0.13. The headline metrics are the repeated-CV median and 5–95% range; the test split is a final confirmation.
+# MAGIC
+# MAGIC **Model scope.** Product types with fewer than `min_type_rows` rows in Gold (Types 4 and 5, about 5 rows, with
+# MAGIC strengths far below the rest) are grouped as `Other`. They stay in training, but too few rows exist to learn them, so
+# MAGIC "in-scope" metrics cover the kept types only and the predictor flags `Other` inputs as out of scope. Including those
+# MAGIC rows would inflate overall R² because their strengths sit far from the rest.
 # MAGIC
 # MAGIC Every run logs the README's required params (`model_type`, `target`, `n_features`, `train_size`, `test_size`),
 # MAGIC R² / MAE / MAPE, predicted-vs-actual and residual plots, feature importance, a signature and an input example.
@@ -34,6 +43,7 @@ dbutils.widgets.text("schema", "gcc", "Schema")
 dbutils.widgets.text("experiment", "", "MLflow experiment path (blank = ~/gcc_cement_strength)")
 dbutils.widgets.text("n_iter", "10", "Random-search candidates per model")
 dbutils.widgets.text("cv_folds", "5", "Grouped CV folds")
+dbutils.widgets.text("cv_repeats", "5", "Repeats of grouped CV for metric ranges")
 dbutils.widgets.text("seed", "42", "Random seed")
 dbutils.widgets.dropdown("register_models", "true", ["true", "false"], "Register models in UC")
 
@@ -41,6 +51,7 @@ CATALOG = dbutils.widgets.get("catalog")
 SCHEMA = dbutils.widgets.get("schema")
 N_ITER = int(dbutils.widgets.get("n_iter"))
 CV_FOLDS = int(dbutils.widgets.get("cv_folds"))
+CV_REPEATS = int(dbutils.widgets.get("cv_repeats"))
 SEED = int(dbutils.widgets.get("seed"))
 REGISTER = dbutils.widgets.get("register_models") == "true"
 
@@ -72,7 +83,7 @@ from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor,
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
-from sklearn.model_selection import GroupKFold, RandomizedSearchCV, cross_val_predict, cross_validate
+from sklearn.model_selection import GroupKFold, RandomizedSearchCV, cross_validate
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -99,14 +110,23 @@ gold[FEATURES] = gold[FEATURES].astype("float64")
 train_df = gold[gold.split == "train"].reset_index(drop=True)
 test_df = gold[gold.split == "test"].reset_index(drop=True)
 
+# Kept product types (Gold's ProductType_group other than "Other") are the model's scope.
+IN_SCOPE_TYPES = sorted(t for t in gold.ProductType.unique() if t in set(gold.ProductType_group) - {"Other"})
+
 print(f"{len(FEATURES)} features: {FEATURES}")
-print(f"train {len(train_df)} rows · test {len(test_df)} rows")
+print(f"train {len(train_df)} rows · test {len(test_df)} rows · in-scope types {IN_SCOPE_TYPES}")
 
 
 def target_data(target):
     tr = train_df[train_df[target].notna()]
     te = test_df[test_df[target].notna()]
     return tr[FEATURES], tr[target], tr["leakage_group"], te[FEATURES], te[target], te
+
+
+def labelled_data(target):
+    """Train and test rows together, for repeated CV with already-tuned hyperparameters."""
+    d = gold[gold[target].notna()].reset_index(drop=True)
+    return d[FEATURES], d[target], d["leakage_group"], d
 
 
 def metrics(y_true, y_pred, baseline_mae):
@@ -246,20 +266,88 @@ def registered_version(model_info, name):
     return str(version)
 
 
-def conformal_halfwidth(model, X, y, groups, level=0.9):
-    """Split-conformal style half-width from out-of-fold residuals on the train split."""
-    oof = cross_val_predict(clone(model), X, y, groups=groups, cv=CV)
-    scores = np.sort(np.abs(y.to_numpy() - oof))
-    k = min(len(scores) - 1, int(np.ceil((len(scores) + 1) * level)) - 1)
-    return float(scores[k])
+def fold_metrics(y_true, y_pred):
+    return {"r2": r2_score(y_true, y_pred), "mae": mean_absolute_error(y_true, y_pred),
+            "mape_pct": 100 * mean_absolute_percentage_error(y_true, y_pred)}
+
+
+def repeated_group_cv(model, X, y, groups, in_scope):
+    """CV_REPEATS × CV_FOLDS grouped CV with a fresh group shuffle per repeat.
+
+    Returns per-fold metrics (overall and in-scope rows) and the out-of-fold predictions of every repeat.
+    """
+    rng = np.random.default_rng(SEED)
+    unique_groups = groups.unique()
+    fold_rows, oof = [], np.empty((CV_REPEATS, len(y)))
+    for r in range(CV_REPEATS):
+        fold_of = pd.Series(rng.permutation(len(unique_groups)) % CV_FOLDS, index=unique_groups)
+        fold = groups.map(fold_of).to_numpy()
+        for k in range(CV_FOLDS):
+            te = fold == k
+            oof[r, te] = clone(model).fit(X[~te], y[~te]).predict(X[te])
+            for scope, mask in (("all", np.ones(len(y), bool)), ("in_scope", in_scope)):
+                sel = te & mask
+                if sel.sum() >= 10:
+                    fold_rows.append({"repeat": r, "fold": k, "scope": scope, **fold_metrics(y[sel], oof[r, sel])})
+    return pd.DataFrame(fold_rows), oof
+
+
+def summarise_ranges(folds):
+    out = folds.groupby("scope")[["r2", "mae", "mape_pct"]].quantile([0.05, 0.5, 0.95]).unstack()
+    out.columns = [f"{m}_{ {0.05: 'p05', 0.5: 'median', 0.95: 'p95'}[q]}" for m, q in out.columns]
+    return out
+
+
+def metrics_by_type(y, oof, product_types):
+    """Error per ProductType across all repeats' out-of-fold predictions."""
+    rows = []
+    for ptype in sorted(product_types.unique()):
+        sel = (product_types == ptype).to_numpy()
+        yt, pt = y[sel].to_numpy(), oof[:, sel]
+        err = yt - pt
+        rows.append({
+            "ProductType": ptype, "n_rows": int(sel.sum()), "in_scope": ptype in IN_SCOPE_TYPES,
+            "mae": float(np.abs(err).mean()), "mape_pct": float(100 * (np.abs(err) / yt).mean()),
+            "bias": float(err.mean()), "mean_strength": float(yt.mean()),
+            "r2_median": float(np.median([r2_score(yt, p) for p in pt])) if sel.sum() >= 10 else None,
+        })
+    return pd.DataFrame(rows)
+
+
+def difficulty(model, X):
+    """Per-row spread across a bagging ensemble's trees; 1.0 for models without one (constant-width interval)."""
+    trees = getattr(model, "estimators_", None)
+    if trees is None or not hasattr(trees[0], "predict"):
+        return np.ones(len(X))
+    values = X.to_numpy() if hasattr(X, "to_numpy") else X
+    return np.stack([t.predict(values) for t in trees]).std(axis=0)
+
+
+def conformal_calibration(model, X, y, groups, level=0.9):
+    """Normalised split-conformal on out-of-fold train residuals: interval = q × difficulty, floored."""
+    scores, spreads = np.empty(len(y)), np.empty(len(y))
+    for tr, te in CV.split(X, y, groups):
+        fitted = clone(model).fit(X.iloc[tr], y.iloc[tr])
+        spreads[te] = difficulty(fitted, X.iloc[te])
+        scores[te] = np.abs(y.iloc[te].to_numpy() - fitted.predict(X.iloc[te]))
+    floor = float(max(np.percentile(spreads, 5), 1e-6))
+    ratios = np.sort(scores / np.maximum(spreads, floor))
+    k = min(len(ratios) - 1, int(np.ceil((len(ratios) + 1) * level)) - 1)
+    return {"q": float(ratios[k]), "floor": floor}
+
+
+def interval_halfwidth(model, X, calibration):
+    return calibration["q"] * np.maximum(difficulty(model, X), calibration["floor"])
 
 # COMMAND ----------
 
-comparison_rows, prediction_frames, importance_frames = [], [], []
+comparison_rows, prediction_frames, importance_frames, range_frames, type_frames = [], [], [], [], []
 champions = {}
 
 for target in TARGETS:
     X_tr, y_tr, g_tr, X_te, y_te, te_rows = target_data(target)
+    X_all, y_all, g_all, all_rows = labelled_data(target)
+    in_scope_all = all_rows.ProductType.isin(IN_SCOPE_TYPES).to_numpy()
     baseline_mae = mean_absolute_error(y_te, np.full(len(y_te), y_tr.mean()))
     uc_name = f"{CATALOG}.{SCHEMA}.{target.lower()}"
     target_results = {}
@@ -278,15 +366,27 @@ for target in TARGETS:
             y_pred = model.predict(X_te)
             m = metrics(y_te, y_pred, baseline_mae)
 
+            # T2b: repeated grouped CV with the tuned hyperparameters, on train + test rows
+            folds, oof = repeated_group_cv(model, X_all, y_all, g_all, in_scope_all)
+            ranges = summarise_ranges(folds)
+            by_type = metrics_by_type(y_all, oof, all_rows.ProductType)
+            range_frames.append(ranges.reset_index().assign(target=target, model_type=name))
+            type_frames.append(by_type.assign(target=target, model_type=name))
+
             with mlflow.start_run(run_name=f"{target}_{name}", nested=True) as run:
                 mlflow.set_tags({"stage": "final", "target": target, "model_type": name})
                 mlflow.log_params({
                     "model_type": name, "target": target, "n_features": len(FEATURES),
                     "train_size": len(y_tr), "test_size": len(y_te), "cv_folds": CV_FOLDS,
-                    "n_iter": N_ITER, "seed": SEED,
+                    "n_iter": N_ITER, "seed": SEED, "cv_repeats": CV_REPEATS,
+                    "in_scope_types": ",".join(IN_SCOPE_TYPES),
                     **{f"best_{k}": v for k, v in search.best_params_.items()},
                 })
                 mlflow.log_metrics({"cv_mae": -search.best_score_, **{f"test_{k}": v for k, v in m.items()}})
+                mlflow.log_metrics({f"rcv_{scope}_{col}": float(v) for scope, row in ranges.iterrows()
+                                    for col, v in row.items()})
+                mlflow.log_table(folds, "repeated_cv_folds.json")
+                mlflow.log_table(by_type, "metrics_by_product_type.json")
 
                 log_fig(plot_pred_vs_actual(y_te, y_pred, f"{target} · {name}"), "plots/pred_vs_actual.png")
                 log_fig(plot_residuals(y_te, y_pred, f"{target} · {name}"), "plots/residuals.png")
@@ -314,6 +414,7 @@ for target in TARGETS:
             target_results[name] = {"model": model, "cv_mae": -search.best_score_, "version": version}
             comparison_rows.append({"target": target, "model_type": name, "cv_mae": -search.best_score_,
                                     **{f"test_{k}": v for k, v in m.items()},
+                                    **{f"rcv_in_scope_{c}": float(v) for c, v in ranges.loc["in_scope"].items()},
                                     "run_id": run.info.run_id, "model_version": version or ""})
             prediction_frames.append(pd.DataFrame({
                 "sample_id": te_rows.sample_id.values, "ProductType": te_rows.ProductType.values,
@@ -324,21 +425,43 @@ for target in TARGETS:
         # T3: champion by CV MAE, never by test score
         best = min(target_results, key=lambda k: target_results[k]["cv_mae"])
         champ = target_results[best]
-        halfwidth = conformal_halfwidth(champ["model"], X_tr, y_tr, g_tr)
+        calibration = conformal_calibration(champ["model"], X_tr, y_tr, g_tr)
+        halfwidths = interval_halfwidth(champ["model"], X_te, calibration)
         champ_pred = champ["model"].predict(X_te)
-        coverage = float(np.mean(np.abs(y_te.values - champ_pred) <= halfwidth))
-        champions[target] = {"model_type": best, "model": champ["model"], "halfwidth": halfwidth}
+        coverage = float(np.mean(np.abs(y_te.values - champ_pred) <= halfwidths))
+        champions[target] = {"model_type": best, "model": champ["model"], "calibration": calibration}
 
         mlflow.set_tag("champion", best)
-        mlflow.log_metrics({"champion_interval90_halfwidth": halfwidth, "champion_interval90_test_coverage": coverage})
+        mlflow.log_metrics({"champion_interval90_median_halfwidth": float(np.median(halfwidths)),
+                            "champion_interval90_test_coverage": coverage})
         if REGISTER and champ["version"]:
             client.set_registered_model_alias(uc_name, "champion", champ["version"])
-        print(f"{target}: champion {best} (CV MAE {champ['cv_mae']:.0f}), 90% interval ±{halfwidth:.0f} psi, "
-              f"test coverage {coverage:.0%}")
+        print(f"{target}: champion {best} (CV MAE {champ['cv_mae']:.0f}), 90% interval median ±{np.median(halfwidths):.0f} "
+              f"psi (range {halfwidths.min():.0f}–{halfwidths.max():.0f}), test coverage {coverage:.0%}")
 
 comparison = pd.DataFrame(comparison_rows)
 comparison["is_champion"] = comparison.apply(lambda r: champions[r.target]["model_type"] == r.model_type, axis=1)
+metric_ranges = pd.concat(range_frames, ignore_index=True)
+by_type_all = pd.concat(type_frames, ignore_index=True)
 display(comparison.drop(columns=["run_id"]).round(3))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Headline metrics: repeated grouped CV, in-scope types (median [5%, 95%])
+
+# COMMAND ----------
+
+headline = metric_ranges[metric_ranges.scope == "in_scope"].copy()
+for metric in ["r2", "mae", "mape_pct"]:
+    fmt = "{:.2f}" if metric == "r2" else "{:.0f}" if metric == "mae" else "{:.1f}"
+    headline[metric] = headline.apply(
+        lambda r: f"{fmt.format(r[metric + '_median'])} [{fmt.format(r[metric + '_p05'])}, {fmt.format(r[metric + '_p95'])}]",
+        axis=1)
+display(headline.pivot(index="model_type", columns="target", values=["r2", "mae", "mape_pct"]))
+display(by_type_all[by_type_all.model_type.isin([c["model_type"] for c in champions.values()])]
+        .merge(pd.DataFrame([{"target": t, "model_type": c["model_type"]} for t, c in champions.items()]))
+        .round(1))
 
 # COMMAND ----------
 
@@ -382,6 +505,10 @@ except ImportError:
 # MAGIC One registered model takes **raw quality inputs** (ProductType + the measured variables, nulls allowed) and applies
 # MAGIC Gold's transformations itself using `gold_feature_spec`: train-median imputation, missing flags and ProductType
 # MAGIC dummies. It returns R1, R7 and R28 with 90% intervals and enforces R1 ≤ R7 ≤ R28. The dashboard simulator calls it.
+# MAGIC
+# MAGIC Intervals are **difficulty-scaled**: for a tree-ensemble champion the width follows the spread of its trees on that
+# MAGIC batch (narrow for typical batches, wide for unusual ones), calibrated on out-of-fold train residuals to 90%.
+# MAGIC Inputs whose ProductType is outside the model's scope get `in_scope = false` and a `scope_note`.
 
 # COMMAND ----------
 
@@ -390,12 +517,13 @@ def product_type_col(product_type):
 
 
 class CementStrengthPredictor(mlflow.pyfunc.PythonModel):
-    def __init__(self, champions, spec, features, targets):
+    def __init__(self, champions, spec, features, targets, in_scope_types):
         self.models = {t: c["model"] for t, c in champions.items()}
-        self.halfwidths = {t: c["halfwidth"] for t, c in champions.items()}
+        self.calibrations = {t: c["calibration"] for t, c in champions.items()}
         self.spec = spec[["column", "role", "kind", "impute_value"]].to_dict("records")
         self.features = features
         self.targets = targets
+        self.in_scope_types = list(in_scope_types)
 
     def _features(self, raw):
         X = pd.DataFrame(index=raw.index)
@@ -424,8 +552,15 @@ class CementStrengthPredictor(mlflow.pyfunc.PythonModel):
         # Strength cannot decrease with curing age
         out[self.targets] = np.maximum.accumulate(out[self.targets].to_numpy(), axis=1)
         for t in self.targets:
-            out[f"{t}_lo"] = out[t] - self.halfwidths[t]
-            out[f"{t}_hi"] = out[t] + self.halfwidths[t]
+            half = interval_halfwidth(self.models[t], X, self.calibrations[t])
+            out[f"{t}_lo"] = out[t] - half
+            out[f"{t}_hi"] = out[t] + half
+        out["in_scope"] = model_input["ProductType"].isin(self.in_scope_types).to_numpy()
+        out["scope_note"] = np.where(
+            out["in_scope"], "",
+            f"ProductType outside the model's scope ({', '.join(self.in_scope_types)}): too few training rows, "
+            "treat the prediction as unreliable",
+        )
         return out
 
 
@@ -435,14 +570,18 @@ if "Physical_Metric_A" not in RAW_INPUTS:
 raw_example = test_df[RAW_INPUTS].head(5).copy()
 raw_example[RAW_INPUTS[1:]] = raw_example[RAW_INPUTS[1:]].astype("float64")
 raw_example.loc[raw_example.index[0], "Physical_Metric_A"] = np.nan  # show that nulls are accepted
+out_of_scope = sorted(set(gold.ProductType) - set(IN_SCOPE_TYPES))
+if out_of_scope:
+    raw_example.loc[raw_example.index[-1], "ProductType"] = out_of_scope[0]  # show the out-of-scope flag
 
-predictor = CementStrengthPredictor(champions, spec, FEATURES, TARGETS)
+predictor = CementStrengthPredictor(champions, spec, FEATURES, TARGETS, IN_SCOPE_TYPES)
 example_out = predictor.predict(None, raw_example)
 
 with mlflow.start_run(run_name="cement_strength_predictor"):
     mlflow.set_tags({"stage": "predictor", **{f"champion_{t}": c["model_type"] for t, c in champions.items()}})
     mlflow.log_params({"targets": ",".join(TARGETS), "n_features": len(FEATURES),
-                       **{f"interval90_{t}": round(c["halfwidth"], 1) for t, c in champions.items()}})
+                       "in_scope_types": ",".join(IN_SCOPE_TYPES),
+                       **{f"interval90_q_{t}": round(c["calibration"]["q"], 3) for t, c in champions.items()}})
     predictor_info = mlflow.pyfunc.log_model(
         python_model=predictor,
         **{MODEL_NAME_KWARG: "predictor"},
@@ -482,6 +621,9 @@ predictions["is_champion"] = predictions.apply(lambda r: champions[r.target]["mo
 
 save(screening, "ml_model_screening", "T1 screening: grouped CV metrics on train for 7 algorithms x 3 targets")
 save(comparison, "ml_model_comparison", "T2 final grid: CV MAE and test R2/MAE/MAPE for 3 algorithms x 3 targets")
+save(metric_ranges, "ml_metric_ranges",
+     "T2b repeated grouped CV: median and 5-95% range of R2/MAE/MAPE per target, model and scope")
+save(by_type_all, "ml_metrics_by_type", "T2b repeated grouped CV error by ProductType; in_scope marks the model scope")
 save(predictions, "ml_test_predictions", "Test-split predictions of every final model, psi")
 save(pd.concat(importance_frames, ignore_index=True), "ml_feature_importance",
      "Permutation importance on the test split (MAE increase in psi)")

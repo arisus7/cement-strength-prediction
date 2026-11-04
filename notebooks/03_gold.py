@@ -17,6 +17,15 @@
 # MAGIC
 # MAGIC Targets stay nullable: train one model per target on the rows where that target exists, or filter to rows with all
 # MAGIC three for a joint multi-output model. Strength is in psi.
+# MAGIC
+# MAGIC **Feature selection after the VIF analysis (21 → 18 features).** The first Gold version had 12 inputs, 5 missing
+# MAGIC flags and 4 ProductType dummies. Three were removed:
+# MAGIC
+# MAGIC | Removed | Reason |
+# MAGIC |---|---|
+# MAGIC | `Mineral_Phase_C` | Almost an exact linear combination of Phases A and B (VIF ≈ 850,000 with an intercept); without it, A and B fall to 4.5 and 1.2. No information is lost. Silver keeps the column for traceability. |
+# MAGIC | `pt_other` | One dummy per category is redundant with the others (dummy-variable trap); `Other` is the reference category |
+# MAGIC | `Chemical_Composition_B_missing` | Near-duplicate of `Chemical_Composition_A_missing`: after Silver, A is missing in 12 rows and B in 13, and the 12 overlap |
 
 # COMMAND ----------
 
