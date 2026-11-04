@@ -10,7 +10,7 @@ resources:
       tasks:
         - task_key: 00_setup
           notebook_task:
-            notebook_path: ../src/00_setup.py
+            notebook_path: ../src/00_setup.ipynb
             source: WORKSPACE
 
         - task_key: 01_bronze
@@ -41,7 +41,7 @@ resources:
             - pypi:
                 package: statsmodels
           notebook_task:
-            notebook_path: ../src/03b_eda_vif.py
+            notebook_path: ../src/03b_eda_vif.ipynb
             source: WORKSPACE
 
         - task_key: 04_train
