@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 04 · Training: 3 algorithms × 3 targets with MLflow
 # MAGIC
@@ -18,14 +22,6 @@
 # MAGIC R² / MAE / MAPE, predicted-vs-actual and residual plots, feature importance, a signature and an input example.
 # MAGIC MAPE is always reported next to `skill_vs_mean` (MAE reduction against predicting the train mean), because strength
 # MAGIC varies little relative to its size and even the mean scores a low MAPE.
-
-# COMMAND ----------
-
-# MAGIC %pip install -q shap
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
 
 # COMMAND ----------
 
