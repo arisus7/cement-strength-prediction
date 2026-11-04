@@ -3,7 +3,7 @@
 El proyecto utiliza Databricks Asset Bundles para garantizar reproducibilidad exacta de extremo a extremo mediante Infrastructure as Code (IaC).
 
 ### Requisitos Previos
-* Databricks CLI (v0.205 o superior) instalado y autenticado en su workspace (`databricks auth login`).
+* Databricks CLI (v0.205 o superior) instalado y autenticado en su workspace. Con: databricks auth login --host https://<tu-workspace-url> ignorando cualquier ruta posterior como /?o=
 
 ### Pasos de Ejecucion
 1. Clone este repositorio localmente:
